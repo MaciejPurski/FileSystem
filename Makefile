@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-I.
+CFLAGS=-I -std=c99.
 DEPS = filesystem.h
 
 %.o: %.c $(DEPS)

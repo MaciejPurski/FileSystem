@@ -3,8 +3,8 @@
 #include "filesystem.h"
 
 int main() {
-  create_disc(20000, "Mydisk");
-  show_fat();
+  create_disc(30000, "Mydisk");
+  show_fat("Mydisk");
   
   
   return 0;
