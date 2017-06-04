@@ -2,559 +2,549 @@
 #include "utils.h"
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <sys/stat.h>
 
-/*Function used to create a new disc with given size and name */
-int create_disc(uint16_t size, char* name) {
-  FILE *file;
-  SuperBlock sBlock;
-  FATTable table;
-  int i;
-  Directory mainDirectory;
-  Block block;
 
-  /*Initialization of superblock*/
-  strcpy(sBlock.name, "MYFAT");
-  sBlock.size = size;
-  sBlock.blockSize = BLOCK_SIZE;
-  sBlock.nBlocks = (size - sizeof(SuperBlock)) /
-    (sizeof(int16_t) + BLOCK_SIZE);
+int create_disc(uint16_t size, char *name) {
+    FILE *file;
+    SuperBlock s_block;
+    FATTable table;
+    int i;
+    Directory main_directory;
+    Block block;
 
-  if (sBlock.nBlocks > MAX_BLOCKS) /*too many blocks*/
-    return -2;
-  
-  sBlock.emptyBlocks = sBlock.nBlocks - 1; /* need 1 block for main directory */
-  
-  sBlock.fatOffset = sizeof(SuperBlock);
-  sBlock.blocksOffset = sizeof(SuperBlock) + sBlock.nBlocks*sizeof(uint16_t);
+    /*Initialization of superblock*/
+    strcpy(s_block.name, "MYFAT");
+    s_block.size = size;
+    s_block.block_size = BLOCK_SIZE;
+    s_block.n_blocks = (size - sizeof(SuperBlock)) /
+                       (sizeof(int16_t) + BLOCK_SIZE);
 
-  /*FAT table initialization*/
-  table.tab = malloc(sBlock.nBlocks*sizeof(int16_t));
-  table.tab[0] = -1; /* first block is occupied by the main directory*/
+    if (s_block.n_blocks > MAX_BLOCKS) /*too many blocks*/
+        return -2;
 
-  for(i=1; i<sBlock.nBlocks; i++)
-    table.tab[i] = -2; /*set all the blocks empty*/
+    s_block.empty_blocks = s_block.n_blocks - 1; /* need 1 block for main directory */
 
-  file = fopen(name, "wb+");
-  if (file == NULL)
-    return -1; /*failed to create file*/
- 
-  /* Initialize main directory */
-  mainDirectory.nFiles = 0;
-  for(i=0; i<FILES_IN_DIR; ++i) {
-    mainDirectory.files[i].flags=FREE;
-  }
+    s_block.fat_offset = sizeof(SuperBlock);
+    s_block.blocks_offset = sizeof(SuperBlock) + s_block.n_blocks * sizeof(uint16_t);
 
-  /*Writing data*/
-  
-  if(fwrite(&sBlock, sizeof(SuperBlock), 1, file) != 1)
-     return -1;
-  if(fwrite(table.tab, sizeof(int16_t), sBlock.nBlocks, file) != sBlock.nBlocks)
-     return -1;
-  if(fwrite(&mainDirectory, sizeof(Directory), 1, file) != 1)
-     return -1;
+    /*FAT table initialization*/
+    table.tab = malloc(s_block.n_blocks * sizeof(int16_t));
+    table.tab[0] = -1; /* first block is occupied by the main directory*/
+
+    for (i = 1; i < s_block.n_blocks; i++)
+        table.tab[i] = -2; /*set all the blocks empty*/
+
+    file = fopen(name, "wb+");
+    if (file == NULL)
+        return -1; /*failed to create file*/
+
+    /* Initialize main directory */
+    main_directory.n_entries = 0;
+    for (i = 0; i < FILES_IN_DIR; ++i) {
+        main_directory.entries[i].flags = FREE;
+    }
+
+    /*Writing data*/
+
+    if (fwrite(&s_block, sizeof(SuperBlock), 1, file) != 1)
+        return -1;
+    if (fwrite(table.tab, sizeof(int16_t), s_block.n_blocks, file) != s_block.n_blocks)
+        return -1;
+    if (fwrite(&main_directory, sizeof(Directory), 1, file) != 1)
+        return -1;
 
 
-  for(i=1; i<sBlock.nBlocks; i++) {
-    if(fwrite(&block, sizeof(Block), 1, file) != 1)
-     return -1;
-  }
+    for (i = 1; i < s_block.n_blocks; i++) {
+        if (fwrite(&block, sizeof(Block), 1, file) != 1)
+            return -1;
+    }
 
-  free(table.tab);
-  fclose(file);
+    free(table.tab);
+    fclose(file);
 
-  return 0;
+    return 0;
 }
 
 
-int show_fat(char* diskName) {
-  SuperBlock sBlock;
-  FATTable table;
-  FILE *file;
-  int i;
+int show_fat(char *disk_name) {
+    SuperBlock s_block;
+    FATTable table;
+    FILE *file;
+    int i;
 
-  file = fopen(diskName, "rb");
-  if (file == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
+    /* read filesystem structures */
+    file = fopen(disk_name, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to open file\n");
+        return -1; /*failed to open file*/
+    }
 
-  if(fread(&sBlock, sizeof(SuperBlock), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    if (fread(&s_block, sizeof(SuperBlock), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  table.tab = (int16_t *) malloc(sBlock.nBlocks*sizeof(int16_t));
-  if(fread(table.tab, sizeof(int16_t), sBlock.nBlocks, file) != sBlock.nBlocks) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    table.tab = (int16_t *) malloc(s_block.n_blocks * sizeof(int16_t));
+    if (fread(table.tab, sizeof(int16_t), s_block.n_blocks, file) != s_block.n_blocks) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  printf("Blocks occupied %d/%d. FATTable: \n", sBlock.nBlocks-sBlock.emptyBlocks, sBlock.nBlocks);
 
-  printf("\nBlock nr \tNext block\n");
-  for(i=0; i<sBlock.nBlocks; ++i)
-    printf("%3d %20d\n", i, table.tab[i]);
+    printf("Blocks occupied %d/%d. FATTable: \n", s_block.n_blocks - s_block.empty_blocks, s_block.n_blocks);
+    printf("\nBlock nr \tNext block\n");
+    for (i = 0; i < s_block.n_blocks; ++i)
+        printf("%3d %20d\n", i, table.tab[i]);
 
-  free(table.tab);
-  fclose(file);
+    free(table.tab);
+    fclose(file);
 
-  return 0;
-
+    return 0;
 }
 
-int make_directory(char* diskName, char* path, char* name) {
-  FILE* file;
-  int newBlock, i; /* newBlock - block of the new directory*/
-  SuperBlock sBlock;
-  FATTable table;
-  Directory dir, newDir;
-  int parentBlock, freeDir; /* parentBlock - block of parent directory, freeDir - index in the table of directory*/
-  /* TODO check name length*/
-  
-  file = fopen(diskName, "rb+");
-  if (file == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
+int make_directory(char *disk_name, char *path, char *name) {
+    FILE *file;
+    int new_block, i; /* new_block - block of the new directory*/
+    SuperBlock s_block;
+    FATTable table;
+    Directory new_dir;
 
-  /*open superblock*/
-  if(fread(&sBlock, sizeof(SuperBlock), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
-  
-   if(sBlock.emptyBlocks == 0) {
-    fprintf(stderr, "Not enough free space\n");
-    return -2;
-  }
+    /* TODO check name length*/
+    /* read data structures */
+    file = fopen(disk_name, "rb+");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to open file\n");
+        return -1; /*failed to open file*/
+    }
 
-  /*one block less will be empty */
-  --sBlock.emptyBlocks;
+    if (fread(&s_block, sizeof(SuperBlock), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  /*open table*/
-  table.tab = (int16_t *) malloc(sBlock.nBlocks*sizeof(int16_t));
-  if(fread(table.tab, sizeof(int16_t), sBlock.nBlocks, file) != sBlock.nBlocks) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    table.tab = (int16_t *) malloc(s_block.n_blocks * sizeof(int16_t));
+    if (fread(table.tab, sizeof(int16_t), s_block.n_blocks, file) != s_block.n_blocks) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  /*update fattable*/
-  newBlock = find_first_block(table.tab, sBlock.nBlocks);
-  table.tab[newBlock]=-1;
 
-  /*find catalog*/
+    if (s_block.empty_blocks == 0) {
+        fprintf(stderr, "Not enough free space\n");
+        return -2;
+    }
 
-  if(save_in_dir(file, name, newBlock, sBlock.blocksOffset, BLOCK_SIZE, DIR, path) < 0)
-    return -2; /*error*/
-  
-   newDir.nFiles = 0;
-     for(i=0; i<FILES_IN_DIR; ++i) {
-    newDir.files[i].flags=FREE;
-  }
+    /*one block less will be empty */
+    --s_block.empty_blocks;
 
-  rewind(file);
+    /*update fat table*/
+    new_block = find_first_block(table.tab, s_block.n_blocks);
+    table.tab[new_block] = -1;
 
-    /* write changes */
-  if(fwrite(&sBlock, sizeof(SuperBlock), 1, file) != 1)
-     return -1;
-  if(fwrite(table.tab, sizeof(int16_t), sBlock.nBlocks, file) != sBlock.nBlocks)
-     return -1;
-  /* save new directory */
-  fseek(file, (long) sBlock.blocksOffset + newBlock*BLOCK_SIZE, 0); 
-  if(fwrite(&newDir, sizeof(Directory), 1, file) != 1)
-     return -1;
+    /*find parent directory and update it*/
+    if (save_in_dir(file, name, new_block, s_block.blocks_offset, BLOCK_SIZE, DIR, path) < 0)
+        return -2; /*error*/
 
-  fclose(file);
-  free(table.tab);
+    /*initialize new directory */
+    new_dir.n_entries = 0;
+    for (i = 0; i < FILES_IN_DIR; ++i) {
+        new_dir.entries[i].flags = FREE;
+    }
 
-  return 0;
+    rewind(file);
+
+    /* write changes in super block and fat table*/
+    if (fwrite(&s_block, sizeof(SuperBlock), 1, file) != 1)
+        return -1;
+    if (fwrite(table.tab, sizeof(int16_t), s_block.n_blocks, file) != s_block.n_blocks)
+        return -1;
+    /* save new directory */
+    fseek(file, (long) s_block.blocks_offset + new_block * BLOCK_SIZE, 0);
+    if (fwrite(&new_dir, sizeof(Directory), 1, file) != 1)
+        return -1;
+
+    fclose(file);
+    free(table.tab);
+
+    return 0;
 }
 
 
+int add_file(char *disc_name, char *toPath, char *fromPath) {
+    uint8_t buffer[BLOCK_SIZE];
+    SuperBlock s_block;
+    FATTable table;
+    FILE *input, *output;
+    int size, block, p_block, n_blocks, i, to_read; /* first free block in which the file shall be written */
+    struct stat st;
 
-int add_file(char* discName, char* fromPath, char* toPath) {
-  uint8_t buffer[BLOCK_SIZE];
-  SuperBlock sBlock;
-  FATTable table;
-  FILE *input, *output;
-  int size, block, pBlock, nBlocks, i, toRead; /* first free block in which the file shall be written */
-  struct stat st;
-  
-  input = fopen(fromPath, "rb");
-  if (input == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
+    input = fopen(fromPath, "rb");
+    if (input == NULL) {
+      fprintf(stderr, "Failed to open input file %s\n", fromPath);
+        return -1; /*failed to open file*/
+    }
 
-  output = fopen(discName, "rb+");
-  if (output == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
+    output = fopen(disc_name, "rb+");
+    if (output == NULL) {
+        fprintf(stderr, "Failed to open disc file\n");
+        return -1; /*failed to open file*/
+    }
 
-  /* get file size */
-  stat(fromPath, &st);
-  size = st.st_size;
+    if (fread(&s_block, sizeof(SuperBlock), 1, output) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  /* count nBlocks */
-  nBlocks = size / BLOCK_SIZE;
-  if((size % BLOCK_SIZE) != 0 )
-    nBlocks++;
+    table.tab = (int16_t *) malloc(s_block.n_blocks * sizeof(int16_t));
+    if (fread(table.tab, sizeof(int16_t), s_block.n_blocks, output) != s_block.n_blocks) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-    /*open superblock*/
-  if(fread(&sBlock, sizeof(SuperBlock), 1, output) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    /* get file size */
+    stat(fromPath, &st);
+    size = st.st_size;
 
-   /*one block less will be empty */
-   sBlock.emptyBlocks-=nBlocks;
-  
-   if(sBlock.emptyBlocks <  0) {
-    fprintf(stderr, "Not enough free space\n");
-    return -2;
-  }
+    /* count n_blocks */
+    n_blocks = size / BLOCK_SIZE;
+    if ((size % BLOCK_SIZE) != 0)
+        n_blocks++;
 
 
-   /*open table*/
-  table.tab = (int16_t *) malloc(sBlock.nBlocks*sizeof(int16_t));
-  if(fread(table.tab, sizeof(int16_t), sBlock.nBlocks, output) != sBlock.nBlocks) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
 
-  /*first block*/
-  pBlock = find_first_block(table.tab, sBlock.nBlocks);
-  table.tab[pBlock] = -1;
-  block = pBlock;
+    if (s_block.empty_blocks < n_blocks) {
+        fprintf(stderr, "Not enough free space\n");
+        return -2;
+    }
 
-  /*find catalog*/
-  if(save_in_dir(output, fromPath, pBlock, sBlock.blocksOffset, size, FIL, toPath) < 0)
-    return -2; /*error*/
-
-  /* find other blocks */
-  for(i = 0; i < nBlocks; ++i) {
-    toRead = (size/BLOCK_SIZE) ? BLOCK_SIZE : size;
-    size-=toRead;
-    fseek(output, sBlock.blocksOffset + BLOCK_SIZE * block, 0);
-    fread(buffer, 1, toRead, input);
-    fwrite(buffer, 1, toRead, output);
     
-    block = find_first_block(table.tab, sBlock.nBlocks);
-    table.tab[block] = -1;
-    table.tab[pBlock] = block;
-    pBlock = block;
-  }
+    /*change number of empty blocks */
+    s_block.empty_blocks -= n_blocks;
+
+    /*first block*/
+    block = find_first_block(table.tab, s_block.n_blocks);
+
+    /*find directory*/
+    if (save_in_dir(output, fromPath, block, s_block.blocks_offset, size, FIL, toPath) < 0)
+        return -2; /*error*/
+
+    /* find other blocks and save data*/
+    for (i = 0; i < n_blocks; ++i) {
+      
+        table.tab[block] = -1;
+        to_read = (size / BLOCK_SIZE) ? BLOCK_SIZE : size;
+        size -= to_read;
+        fseek(output, s_block.blocks_offset + BLOCK_SIZE * block, 0);
+        fread(buffer, 1, to_read, input);
+        fwrite(buffer, 1, to_read, output);
+	if (i != 0)
+	  table.tab[p_block] = block;
+
+     	p_block = block;
+	block = find_first_block(table.tab, s_block.n_blocks);
+    }
+
+    
 
     rewind(output);
 
     /* write changes */
-  if(fwrite(&sBlock, sizeof(SuperBlock), 1, output) != 1)
-     return -1;
-  if(fwrite(table.tab, sizeof(int16_t), sBlock.nBlocks, output) != sBlock.nBlocks)
-     return -1;
+    if (fwrite(&s_block, sizeof(SuperBlock), 1, output) != 1)
+        return -1;
+    if (fwrite(table.tab, sizeof(int16_t), s_block.n_blocks, output) != s_block.n_blocks)
+        return -1;
 
-  free(table.tab);
-  fclose(input);
-  fclose(output);
+    free(table.tab);
+    fclose(input);
+    fclose(output);
 
-  return 0;
+    return 0;
 }
 
-int remove_file(char* discName, char* path, char* name) {
-  Directory dir;
-  SuperBlock sBlock;
-  FATTable table;
-  FILE *file;
-  int size, dirBlock, index, block, pBlock, nBlocks, i; /* first free block in which the file shall be written */
-  struct stat st;
+int remove_file(char *disc_name, char *path, char *name) {
+    Directory dir;
+    SuperBlock s_block;
+    FATTable table;
+    FILE *file;
+    int size, dir_block, index, block, p_block, n_blocks, i; /* first free block in which the file shall be written */
+    struct stat st;
 
-  file = fopen(discName, "rb+");
-  if (file == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
+    file = fopen(disc_name, "rb+");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to open file\n");
+        return -1; /*failed to open file*/
+    }
 
-  /*open superblock*/
-  if(fread(&sBlock, sizeof(SuperBlock), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    if (fread(&s_block, sizeof(SuperBlock), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-     /*open table*/
-  table.tab = (int16_t *) malloc(sBlock.nBlocks*sizeof(int16_t));
-  if(fread(table.tab, sizeof(int16_t), sBlock.nBlocks, file) != sBlock.nBlocks) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    table.tab = (int16_t *) malloc(s_block.n_blocks * sizeof(int16_t));
+    if (fread(table.tab, sizeof(int16_t), s_block.n_blocks, file) != s_block.n_blocks) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
     /*find catalog*/
-  fseek(file, (long) sBlock.blocksOffset, 0);
-  /* read first catalog */
-  if(fread(&dir, sizeof(Directory), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    fseek(file, (long) s_block.blocks_offset, 0);
+    /* read first catalog */
+    if (fread(&dir, sizeof(Directory), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  /* recursive search through directories */
-   if(strcmp(path, "/" ) == 0)
-     dirBlock = 0;
-  else	  /* recursive search through directories */
-     dirBlock = find_dir(&dir, file, path, sBlock.blocksOffset);
-     
-  if ( dirBlock == -1) {
-    fprintf(stderr, "Path not found\n");
-    return -1;
-  }
+    /* recursive search through directories */
+    if (strcmp(path, "/") == 0)
+        dir_block = 0;
+    else
+        dir_block = find_dir(&dir, file, path, s_block.blocks_offset);
 
-  /* find file in directory */
-  if((index = find_in_dir(&dir, name)) < 0) {
-    fprintf(stderr, "File not found\n");
-    return -1;
-   }
+    if (dir_block == -1) {
+        fprintf(stderr, "Path not found\n");
+        return -1;
+    }
 
-  if(dir.files[index].flags == DIR) {
-    fprintf(stderr, "Not a file\n");
-    return -1;
-  }
-  
-  /* remove file from dir */
-  block = dir.files[index].blockNumber;
-  dir.files[index].flags = FREE;
+    /* find file in directory */
+    if ((index = find_in_dir(&dir, name)) < 0) {
+        fprintf(stderr, "File not found\n");
+        return -1;
+    }
+
+    if (dir.entries[index].flags == DIR) {
+        fprintf(stderr, "Not a file\n");
+        return -1;
+    }
+
+    /* remove file from dir */
+    block = dir.entries[index].block_number;
+    dir.entries[index].flags = FREE;
 
 
-  nBlocks=0; 
+    n_blocks = 0;
+    do {
+        p_block = block;
+        block = table.tab[block];
+        table.tab[p_block] = -2;
+        ++n_blocks;
+    } while (block != -1);
 
-  do {
-    printf("block: %d\n", block);
-    pBlock = block;
-    block = table.tab[block];
-    table.tab[pBlock] = -2;
-    ++nBlocks;
-   } while (block != -1);
-  
 
-  /*blocks got free  */
-   sBlock.emptyBlocks+=nBlocks;
+    /*blocks got free  */
+    s_block.empty_blocks += n_blocks;
 
     rewind(file);
 
     /* write changes */
-  if(fwrite(&sBlock, sizeof(SuperBlock), 1, file) != 1)
-     return -1;
-  if(fwrite(table.tab, sizeof(int16_t), sBlock.nBlocks, file) != sBlock.nBlocks)
-     return -1;
+    if (fwrite(&s_block, sizeof(SuperBlock), 1, file) != 1)
+        return -1;
+    if (fwrite(table.tab, sizeof(int16_t), s_block.n_blocks, file) != s_block.n_blocks)
+        return -1;
 
-  fseek(file, sBlock.blocksOffset + dirBlock * BLOCK_SIZE, 0);
-  fwrite(&dir, sizeof(Directory), 1, file);
-
-  
-
-  free(table.tab);
-  fclose(file);
+    fseek(file, s_block.blocks_offset + dir_block * BLOCK_SIZE, 0);
+    fwrite(&dir, sizeof(Directory), 1, file);
 
 
-  return 0;
+    free(table.tab);
+    fclose(file);
 
+
+    return 0;
 }
 
 
-int get_file(char* discName, char* path, char* name) {
-  uint8_t buffer[BLOCK_SIZE];
-  Directory dir;
-  SuperBlock sBlock;
-  FATTable table;
-  FILE *file, *output;
-  int size, dirBlock, index, block, toRead; /* first free block in which the file shall be written */
-  char outName[24] = "Result_"; 
-  strcat(outName, name);
+int get_file(char *disc_name, char *path, char *name) {
+    uint8_t buffer[BLOCK_SIZE];
+    Directory dir;
+    SuperBlock s_block;
+    FATTable table;
+    FILE *file, *output;
+    int size, dir_block, index, block, toRead; /* first free block in which the file shall be written */
+    char outName[24] = "Result_";
+    strcat(outName, name);
 
-  /*create new file*/
-  output = fopen(outName, "wb+");
-  if (output == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
+    /*create new file*/
+    output = fopen(outName, "wb+");
+    if (output == NULL) {
+        fprintf(stderr, "Failed to open file\n");
+        return -1; /*failed to open file*/
+    }
 
 
-  file = fopen(discName, "rb");
-  if (file == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
+    file = fopen(disc_name, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to open file\n");
+        return -1; /*failed to open file*/
+    }
 
-  /*open superblock*/
-  if(fread(&sBlock, sizeof(SuperBlock), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    if (fread(&s_block, sizeof(SuperBlock), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-     /*open table*/
-  table.tab = (int16_t *) malloc(sBlock.nBlocks*sizeof(int16_t));
-  if(fread(table.tab, sizeof(int16_t), sBlock.nBlocks, file) != sBlock.nBlocks) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    table.tab = (int16_t *) malloc(s_block.n_blocks * sizeof(int16_t));
+    if (fread(table.tab, sizeof(int16_t), s_block.n_blocks, file) != s_block.n_blocks) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
     /*find catalog*/
-  fseek(file, (long) sBlock.blocksOffset, 0);
-  /* read first catalog */
-  if(fread(&dir, sizeof(Directory), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    fseek(file, (long) s_block.blocks_offset, 0);
+    /* read first catalog */
+    if (fread(&dir, sizeof(Directory), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  /* recursive search through directories */
-   if(strcmp(path, "/" ) == 0)
-     dirBlock = 0;
-  else	  /* recursive search through directories */
-     dirBlock = find_dir(&dir, file, path, sBlock.blocksOffset);
-     
-  if ( dirBlock == -1) {
-    fprintf(stderr, "Path not found\n");
-    return -1;
-  }
+    /* recursive search through directories */
+    if (strcmp(path, "/") == 0)
+        dir_block = 0;
+    else      /* recursive search through directories */
+        dir_block = find_dir(&dir, file, path, s_block.blocks_offset);
 
-  /* find file in directory */
-  if((index = find_in_dir(&dir, name)) < 0) {
-    fprintf(stderr, "File not found\n");
-    return -1;
-   }
+    if (dir_block == -1) {
+        fprintf(stderr, "Path not found\n");
+        return -1;
+    }
 
-  if(dir.files[index].flags == DIR) {
-    fprintf(stderr, "Not a file\n");
-    return -1;
-  }
+    /* find file in directory */
+    if ((index = find_in_dir(&dir, name)) < 0) {
+        fprintf(stderr, "File not found\n");
+        return -1;
+    }
 
-  block = dir.files[index].blockNumber;
-  size = dir.files[index].fileSize;
+    if (dir.entries[index].flags == DIR) {
+        fprintf(stderr, "Not a file\n");
+        return -1;
+    }
 
-  /* read and write data */
+    block = dir.entries[index].block_number;
+    size = dir.entries[index].size;
 
-  do {
-    toRead = (size/BLOCK_SIZE) ? BLOCK_SIZE : size;
-    size-=toRead;
-    fseek(file, sBlock.blocksOffset + BLOCK_SIZE * block, 0);
-    fread(buffer, 1, toRead, file);
-    fwrite(buffer, 1, toRead, output);
-    block = table.tab[block];
-  } while (block != -1);
-  
+    /* read and write data */
 
-
-  free(table.tab);
-  fclose(file);
-  fclose(output);
+    do {
+        toRead = (size / BLOCK_SIZE) ? BLOCK_SIZE : size;
+        size -= toRead;
+        fseek(file, s_block.blocks_offset + BLOCK_SIZE * block, 0);
+        fread(buffer, 1, toRead, file);
+        fwrite(buffer, 1, toRead, output);
+        block = table.tab[block];
+    } while (block != -1);
 
 
-  return 0;
+    free(table.tab);
+    fclose(file);
+    fclose(output);
+
+
+    return 0;
 
 }
-  
-int show_directory(char* diskName, char* path) {
-  FILE* file;
-  int freeBlock, i;
-  SuperBlock sBlock;
-  Directory dir;
-  int dirBlock, freeDir;
-  /* TODO check name length*/
-  
-  file = fopen(diskName, "rb");
-  if (file == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
 
-  /*open superblock*/
-  if(fread(&sBlock, sizeof(SuperBlock), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+int show_directory(char *diskName, char *path) {
+    FILE *file;
+    int freeBlock, i;
+    SuperBlock sBlock;
+    Directory dir;
+    int dirBlock, freeDir;
+    /* TODO check name length*/
 
-  /*find catalog*/
-  fseek(file, (long) sBlock.blocksOffset, 0);
-  /* read first catalog */
-  if(fread(&dir, sizeof(Directory), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    file = fopen(diskName, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to open file\n");
+        return -1; /*failed to open file*/
+    }
 
-  /* recursive search through directories */
-   if(strcmp(path, "/" ) == 0)
-     dirBlock = 0;
-  else	  /* recursive search through directories */
-     dirBlock = find_dir(&dir, file, path, sBlock.blocksOffset);
-     
-  if ( dirBlock == -1) {
-    fprintf(stderr, "Path not found\n");
-    return -1;
-  }
+    /*open superblock*/
+    if (fread(&sBlock, sizeof(SuperBlock), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  printf("Directory %s :\n", path); 
-  for(i=0; i<FILES_IN_DIR; i++) {
-    if(OCCUPIED(dir.files[i].flags))
-      printf("%s\t", dir.files[i].fileName);
-  }
-  printf("\n");
+    /*find catalog*/
+    fseek(file, (long) sBlock.blocks_offset, 0);
+    /* read first catalog */
+    if (fread(&dir, sizeof(Directory), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  fclose(file);
+    /* recursive search through directories */
+    if (strcmp(path, "/") == 0)
+        dirBlock = 0;
+    else      /* recursive search through directories */
+        dirBlock = find_dir(&dir, file, path, sBlock.blocks_offset);
 
-  return 0;
+    if (dirBlock == -1) {
+        fprintf(stderr, "Path not found\n");
+        return -1;
+    }
+
+    printf("Directory %s :\n", path);
+    for (i = 0; i < FILES_IN_DIR; i++) {
+        if (OCCUPIED(dir.entries[i].flags))
+            printf("%s\t", dir.entries[i].name);
+    }
+    printf("\n");
+
+    fclose(file);
+
+    return 0;
 }
 
 
-int stats(char* diskName, char* path, char* name) {
-   FILE* file;
-   int fileIndex;
-  SuperBlock sBlock;
-  Directory dir;
-  int dirBlock;
-  /* TODO check name length*/
-  
-  file = fopen(diskName, "rb");
-  if (file == NULL) {
-    fprintf(stderr, "Failed to open file\n");
-    return -1; /*failed to open file*/
-  }
+int stats(char *diskName, char *path, char *name) {
+    FILE *file;
+    int fileIndex;
+    SuperBlock sBlock;
+    Directory dir;
+    int dirBlock;
+    /* TODO check name length*/
 
-  /*open superblock*/
-  if(fread(&sBlock, sizeof(SuperBlock), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    file = fopen(diskName, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "Failed to open file\n");
+        return -1; /*failed to open file*/
+    }
 
-  /*find catalog*/
-  fseek(file, (long) sBlock.blocksOffset, 0);
-  /* read first catalog */
-  if(fread(&dir, sizeof(Directory), 1, file) != 1) {
-     fprintf(stderr, "Failed to read data\n");
-     return -1;
-  }
+    /*open superblock*/
+    if (fread(&sBlock, sizeof(SuperBlock), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  /* recursive search through directories */
-   if(strcmp(path, "/" ) == 0)
-     dirBlock = 0;
-  else	  /* recursive search through directories */
-     dirBlock = find_dir(&dir, file, path, sBlock.blocksOffset);
-     
-  if ( dirBlock == -1) {
-    fprintf(stderr, "Path not found\n");
-    return -1;
-  }
+    /*find catalog*/
+    fseek(file, (long) sBlock.blocks_offset, 0);
+    /* read first catalog */
+    if (fread(&dir, sizeof(Directory), 1, file) != 1) {
+        fprintf(stderr, "Failed to read data\n");
+        return -1;
+    }
 
-  if(( fileIndex = find_in_dir(&dir, name) ) == -1 ) {
-    fprintf(stderr, "File or directory does not exist\n");
-    return -1;
-  }
+    /* recursive search through directories */
+    if (strcmp(path, "/") == 0)
+        dirBlock = 0;
+    else      /* recursive search through directories */
+        dirBlock = find_dir(&dir, file, path, sBlock.blocks_offset);
 
-  printf("Type: \t%s", (dir.files[fileIndex].flags & DIR) ? "Directory\n" : "File\n");
-  printf("Name: \t%s\n", dir.files[fileIndex].fileName);
-  printf("Size: \t%d\n", dir.files[fileIndex].fileSize);
-  printf("Created: \t%s\n", ctime(&dir.files[fileIndex].created));
-	 fclose(file);
-	 return 0;
+    if (dirBlock == -1) {
+        fprintf(stderr, "Path not found\n");
+        return -1;
+    }
+
+    if ((fileIndex = find_in_dir(&dir, name)) == -1) {
+        fprintf(stderr, "File or directory does not exist\n");
+        return -1;
+    }
+
+    printf("Type: \t%s", (dir.entries[fileIndex].flags & DIR) ? "Directory\n" : "File\n");
+    printf("Name: \t%s\n", dir.entries[fileIndex].name);
+    printf("Size: \t%d\n", dir.entries[fileIndex].size);
+    printf("Created: \t%s\n", ctime(&dir.entries[fileIndex].created));
+    fclose(file);
+    return 0;
 }
   
   
